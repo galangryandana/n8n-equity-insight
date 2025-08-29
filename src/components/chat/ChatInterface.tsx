@@ -85,16 +85,33 @@ export const ChatInterface = () => {
       const response = await fetch(`https://totally-eternal-shrew.ngrok-free.app/webhook/a0ea8e36-8d95-453d-a776-6dbc9ce49b03?query=${encodeURIComponent(userQuery)}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Accept': 'application/json'
         }
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        throw new Error('Failed to get analysis from AI agent');
+        throw new Error(`HTTP ${response.status}: Failed to get analysis from AI agent`);
       }
 
-      const analysisData = await response.json();
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+
+      // Check if response is HTML (ngrok warning page)
+      if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html')) {
+        throw new Error('Received HTML instead of JSON - ngrok tunnel may be blocking the request');
+      }
+
+      let analysisData;
+      try {
+        analysisData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        throw new Error('Invalid JSON response from webhook');
+      }
       
       // Parse the n8n response and create AI message
       const aiResponse: Message = {
