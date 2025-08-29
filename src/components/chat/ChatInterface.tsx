@@ -100,6 +100,11 @@ export const ChatInterface = () => {
       const responseText = await response.text();
       console.log('Raw response:', responseText);
 
+      // Check if response is empty
+      if (!responseText || responseText.trim() === '') {
+        throw new Error('Empty response from webhook - check n8n workflow configuration');
+      }
+
       // Check if response is HTML (ngrok warning page)
       if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html')) {
         throw new Error('Received HTML instead of JSON - ngrok tunnel may be blocking the request');
@@ -110,6 +115,7 @@ export const ChatInterface = () => {
         analysisData = JSON.parse(responseText);
       } catch (parseError) {
         console.error('JSON parse error:', parseError);
+        console.error('Response text that failed to parse:', responseText);
         throw new Error('Invalid JSON response from webhook');
       }
       
