@@ -65,7 +65,7 @@ export const ChatInterface = () => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     const userMessage: Message = {
@@ -76,38 +76,61 @@ export const ChatInterface = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const userQuery = input;
     setInput("");
     setIsTyping(true);
 
-    // Simulate AI response with analysis
-    setTimeout(() => {
-      const stockSymbols = input.match(/\b[A-Z]{1,5}\b/g);
-      const hasStockSymbol = stockSymbols && stockSymbols.length > 0;
-      
-      let aiResponse: Message;
-      
-      if (hasStockSymbol) {
-        const symbol = stockSymbols[0];
-        const analysis = mockAnalysis(symbol);
-        aiResponse = {
-          id: (Date.now() + 1).toString(),
-          type: 'ai',
-          content: `Here's my analysis for ${symbol}:`,
-          timestamp: new Date(),
-          analysis
-        };
-      } else {
-        aiResponse = {
-          id: (Date.now() + 1).toString(),
-          type: 'ai',
-          content: "I'd be happy to help you analyze a stock! Please provide a stock symbol (like AAPL, TSLA, or MSFT) and I'll give you a comprehensive analysis.",
-          timestamp: new Date()
-        };
+    try {
+      // Call n8n webhook with user query
+      const response = await fetch(`https://totally-eternal-shrew.ngrok-free.app/webhook/a0ea8e36-8d95-453d-a776-6dbc9ce49b03?query=${encodeURIComponent(userQuery)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get analysis from AI agent');
       }
 
+      const analysisData = await response.json();
+      
+      // Parse the n8n response and create AI message
+      const aiResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: analysisData.message || "Here's my analysis:",
+        timestamp: new Date(),
+        analysis: analysisData.analysis ? {
+          symbol: analysisData.analysis.symbol || 'N/A',
+          price: analysisData.analysis.price || 0,
+          change: analysisData.analysis.change || 0,
+          changePercent: analysisData.analysis.changePercent || 0,
+          volume: analysisData.analysis.volume || 'N/A',
+          marketCap: analysisData.analysis.marketCap || 'N/A',
+          pe: analysisData.analysis.pe || 0,
+          recommendations: analysisData.analysis.recommendations || [],
+          sentiment: analysisData.analysis.sentiment || 'neutral',
+          riskLevel: analysisData.analysis.riskLevel || 'medium'
+        } : undefined
+      };
+
       setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error calling n8n webhook:', error);
+      
+      // Show error message to user
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'ai',
+        content: "I'm having trouble connecting to my analysis engine right now. Please try again in a moment.",
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
